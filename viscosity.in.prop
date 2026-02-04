@@ -1,0 +1,16 @@
+######################################  Calculate Viscosity
+# Green-Kubo (GK) formula
+# conversion factor
+variable    convert equal ${atm2Pa}*${atm2Pa}*${fs2s}*${A2m}*${A2m}*${A2m}
+
+# stress tensors
+variable       pxy equal pxy
+variable       pxz equal pxz
+variable       pyz equal pyz
+fix            SS all ave/correlate $s $p $d v_pxy v_pxz v_pyz type auto file S0St.dat ave running
+
+variable       scale equal ${convert}/(${kB}*${TEql})*${Vout}*$s*${dt}
+variable       v11 equal trap(f_SS[3])*${scale}
+variable       v22 equal trap(f_SS[4])*${scale}
+variable       v33 equal trap(f_SS[5])*${scale}
+variable       vis equal (v_v11+v_v22+v_v33)/3.0

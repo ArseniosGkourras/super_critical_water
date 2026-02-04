@@ -1,0 +1,13 @@
+####################################### Calculate Diffusion Coefficient ##############################
+####################################### Using MSD method
+# conversion factor from A2/fs to m2/s
+variable convDiff equal 1e-5
+
+# Overal diffusivity (involving all the atoms)
+
+# H2O
+compute         msd_H2O all  msd com yes
+fix             msd_vec_H2O all vector $d  c_msd_H2O[4]
+
+variable        D_H2O equal (${convDiff}*slope(f_msd_vec_H2O))/(6*${dt}*$d)
+

@@ -1,0 +1,87 @@
+
+variable        temp index 373
+variable        press index 30
+#neighbor 0.5 bin 
+boundary        p p p
+
+include "system.in.init"
+read_data "system.data"
+include "system.in.settings"
+
+variable TEql equal ${temp} # K
+
+#----- conversion factors and coefficients
+
+variable ps2fs equal 1e3
+variable ns2fs equal 1e6
+variable ms2fs equal 1e9
+variable fs2s equal 1e-15
+variable atm2Pa equal 101325.0
+variable A2m equal 1.0e-10
+
+variable kB equal 1.3806504e-23 # [J/K] Boltzmann
+
+
+# MD setting
+group           water type 7 8
+neighbor        2.0 bin
+neigh_modify    every 1 delay 10 check yes
+
+write_data initial_config.data
+
+velocity        all create ${temp} 54654
+variable dt equal 1
+timestep        1
+
+# rigid MD 
+thermo_style    custom step time temp press pe ke etotal enthalpy atoms lx ly lz vol density
+thermo 1000
+
+velocity   water create ${temp} 3125  loop local  dist gaussian
+fix md_nvt water nvt temp ${temp} ${temp} $(100.0*dt)
+
+run         1000000
+
+# SECTION:  ADD to FIX and UNFIX to enable  NVT-PRUDUCTION !
+unfix       md_nvt 
+   # RUN-NPT
+fix md_npt water npt temp ${temp} ${temp} $(100.0*dt) iso ${press} ${press} $(1000.0*dt)
+
+#-------------------------- Dump the time-averaged global properties --------------------------
+
+variable s equal 10    # sample interval
+variable p equal 100   # correlation length
+variable d equal $s*$p # dump interval to calculate thermodynamic properties
+
+# get thermodynamic properties 
+variable time equal time
+variable Vout equal vol
+variable Pout equal press
+variable Tout equal temp
+variable Hout equal enthalpy
+variable PEout equal pe
+variable KEout equal ke
+variable ETOTout equal etotal
+variable massDensity equal density
+
+# global scalar properties
+fix GlobalPropsTimeAvg  all ave/time $s  $p  $d  v_Pout v_Tout v_Vout  v_Hout v_PEout v_KEout v_ETOTout v_massDensity  file GlobalPropsTimeAvg.prop
+
+# calculate diffusivity
+include diffusivity_msd.in.prop
+
+# calculate viscosity
+include viscosity.in.prop
+
+# write calculated properties to a file
+fix GlobalPropCalculated  all print $d  "time:${time}, D[H2O]:${D_H2O}, viscosity:${vis}" file GlobalPropCalculated.prop screen no
+
+
+# vector properties
+compute myRDF all rdf  200 7 7 8 8 7 8
+fix rdfOut  all ave/time $s $p $d  c_myRDF[*] file rdf_all.rdf mode vector
+
+
+run         5000000
+
+unfix         md_npt
